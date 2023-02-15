@@ -1,0 +1,306 @@
+---
+title: "ML_project1"
+author: "Oliver Faulkner Anderson"
+date: "2023-02-01"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidytext)
+```
+
+```{r}
+# read in dataset
+pinot_raw<-read_rds("/Users/slimeollie/Desktop/WU/MSDS/DATA505/pinot.rds")
+
+# check variables
+View(pinot_raw)
+
+# rename id to ID for joining
+pinot_raw <- pinot_raw %>% 
+  rename("ID"="id")
+
+# frequency of each word
+df<-pinot_raw %>%
+  unnest_tokens(word, description) %>%
+  anti_join(stop_words) %>% # get rid of stop words
+  filter(word != "wine") %>%
+   filter(word != "pinot") %>%
+   count(ID, word) %>% 
+   group_by(ID) %>% 
+   mutate(freq = n/sum(n)) %>% 
+   mutate(exists = (n>0)) %>% 
+   ungroup %>% 
+   group_by(word) %>% 
+   mutate(total = sum(n))
+
+# top 25 most frequent words
+df %>% 
+  count(word) %>%
+  arrange(desc(n)) %>% 
+  head(25)
+```
+
+```{r}
+# join words back to pinot dataframe
+pinot<-df %>% 
+  filter(total > 1000) %>% 
+  pivot_wider(id_cols = ID, names_from = word, values_from = exists, values_fill = list(exists=0)) %>% 
+  merge(select(wine,ID, province), all.y=TRUE)# %>% 
+  #drop_na()
+
+# replace NA with FALSE  
+pinot <- replace(pinot, is.na(pinot), FALSE)
+
+head(pinot)
+
+# get most frequent words for each province
+df %>% 
+  left_join(select(wine, ID, province), by = "ID") %>% 
+  count(province, word) %>%
+  group_by(province) %>% 
+  # filter by most frequent
+  # top_n(5,n) %>% 
+  arrange(province, desc(n)) %>% 
+  filter(province==c("Casablanca Valley", "New York", "Marlborough"),
+         n>10)
+```
+
+```{r}
+ptxt <- pinot_raw %>% 
+  unnest_tokens(word, description) %>% 
+  anti_join(stop_words) %>% 
+  filter(str_detect(string = word, pattern = "[a-z+]")) %>%  # get rid weird non alphas
+  filter(str_length(word)>3) %>%  # get rid of strings shorter than 3 characters
+  group_by(word) %>% 
+  mutate(total=n()) %>% 
+  ungroup()
+
+# casablanca valley vs california word freq
+ptxt %>% 
+    filter(province=="Casablanca_Valley" | province=="California") %>% 
+    filter(!(word %in% c("wine","pinot","drink","noir","vineyard","palate","notes","flavors","bottling"))) %>% 
+    filter(total > 400) %>% 
+    group_by(province, word) %>%
+    count() %>% 
+    group_by(province) %>% 
+    mutate(proportion = n / sum(n)) %>% 
+    pivot_wider(id_cols = word, names_from = province, values_from = proportion) %>% 
+     ggplot(aes(x = Casablanca_Valley, y = California, color = abs(Casablanca_Valley - California))) +
+     geom_abline(color = "gray40", lty = 2) +
+     geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+     geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+     scale_x_log10(labels = percent_format()) +
+     scale_y_log10(labels = percent_format()) +
+     scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+     theme(legend.position="none") +
+     labs(x = "CV", y = "California", title = "Words describing Pinot Noir from California and CV")
+
+
+
+# casablanca valley vs california word freq
+ptxt %>% 
+    filter(province=="Casablanca_Valley" | province=="California") %>% 
+    filter(!(word %in% c("wine","pinot","drink","noir","vineyard","palate","notes","flavors","bottling"))) %>% 
+    filter(total > 400) %>% 
+    group_by(province, word) %>%
+    count() %>% 
+    group_by(province) %>% 
+    mutate(proportion = n / sum(n)) %>% 
+    pivot_wider(id_cols = word, names_from = province, values_from = proportion) %>% 
+     ggplot(aes(x = Casablanca_Valley, y = California, color = abs(Casablanca_Valley - California))) +
+     geom_abline(color = "gray40", lty = 2) +
+     geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+     geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+     scale_x_log10(labels = percent_format()) +
+     scale_y_log10(labels = percent_format()) +
+     scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+     theme(legend.position="none") +
+     labs(x = "CV", y = "California", title = "Words describing Pinot Noir from California and CV")
+
+ptxt %>% 
+    filter(province=="Casablanca_Valley" | province=="Oregon") %>% 
+    filter(!(word %in% c("wine","pinot","drink","noir","vineyard","palate","notes","flavors","bottling"))) %>% 
+    filter(total > 400) %>% 
+    group_by(province, word) %>%
+    count() %>% 
+    group_by(province) %>% 
+    mutate(proportion = n / sum(n)) %>% 
+    pivot_wider(id_cols = word, names_from = province, values_from = proportion) %>% 
+     ggplot(aes(x = Casablanca_Valley, y = Oregon, color = abs(Casablanca_Valley - Oregon))) +
+     geom_abline(color = "gray40", lty = 2) +
+     geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+     geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+     scale_x_log10(labels = percent_format()) +
+     scale_y_log10(labels = percent_format()) +
+     scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+     theme(legend.position="none") +
+     labs(x = "CV", y = "Oregon", title = "Words describing Pinot Noir from Oregon and CV")
+
+
+# marlborough and oregon
+ptxt %>% 
+    filter(province=="Marlborough" | province=="Oregon") %>% 
+    filter(!(word %in% c("wine","pinot","drink","noir","vineyard","palate","notes","flavors","bottling"))) %>% 
+    filter(total > 400) %>% 
+    group_by(province, word) %>%
+    count() %>% 
+    group_by(province) %>% 
+    mutate(proportion = n / sum(n)) %>% 
+    pivot_wider(id_cols = word, names_from = province, values_from = proportion) %>% 
+     ggplot(aes(x = Marlborough, y = Oregon, color = abs(Marlborough - Oregon))) +
+     geom_abline(color = "gray40", lty = 2) +
+     geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+     geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+     scale_x_log10(labels = percent_format()) +
+     scale_y_log10(labels = percent_format()) +
+     scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+     theme(legend.position="none") +
+     labs(x = "Marlborough", y = "Oregon", title = "Words describing Pinot Noir from Oregon and Marlborough")
+
+# marlborough and California
+ptxt %>% 
+    filter(province=="Marlborough" | province=="California") %>% 
+    filter(!(word %in% c("wine","pinot","drink","noir","vineyard","palate","notes","flavors","bottling"))) %>% 
+    filter(total > 400) %>% 
+    group_by(province, word) %>%
+    count() %>% 
+    group_by(province) %>% 
+    mutate(proportion = n / sum(n)) %>% 
+    pivot_wider(id_cols = word, names_from = province, values_from = proportion) %>% 
+     ggplot(aes(x = Marlborough, y = California, color = abs(Marlborough - California))) +
+     geom_abline(color = "gray40", lty = 2) +
+     geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+     geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+     scale_x_log10(labels = percent_format()) +
+     scale_y_log10(labels = percent_format()) +
+     scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+     theme(legend.position="none") +
+     labs(x = "Marlborough", y = "California", title = "Words describing Pinot Noir from California and Marlborough")
+
+
+# New_York and California
+ptxt %>% 
+    filter(province=="New_York" | province=="California") %>% 
+    filter(!(word %in% c("wine","pinot","drink","noir","vineyard","palate","notes","flavors","bottling"))) %>% 
+    filter(total > 400) %>% 
+    group_by(province, word) %>%
+    count() %>% 
+    group_by(province) %>% 
+    mutate(proportion = n / sum(n)) %>% 
+    pivot_wider(id_cols = word, names_from = province, values_from = proportion) %>% 
+     ggplot(aes(x = New_York, y = California, color = abs(New_York - California))) +
+     geom_abline(color = "gray40", lty = 2) +
+     geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+     geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+     scale_x_log10(labels = percent_format()) +
+     scale_y_log10(labels = percent_format()) +
+     scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+     theme(legend.position="none") +
+     labs(x = "New_York", y = "California", title = "Words describing Pinot Noir from California and New_York")
+
+
+# NY and Oregon
+ptxt %>% 
+    filter(province=="New_York" | province=="Oregon") %>% 
+    filter(!(word %in% c("wine","pinot","drink","noir","vineyard","palate","notes","flavors","bottling"))) %>% 
+    filter(total > 400) %>% 
+    group_by(province, word) %>%
+    count() %>% 
+    group_by(province) %>% 
+    mutate(proportion = n / sum(n)) %>% 
+    pivot_wider(id_cols = word, names_from = province, values_from = proportion) %>% 
+     ggplot(aes(x = New_York, y = Oregon, color = abs(New_York - Oregon))) +
+     geom_abline(color = "gray40", lty = 2) +
+     geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+     geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+     scale_x_log10(labels = percent_format()) +
+     scale_y_log10(labels = percent_format()) +
+     scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+     theme(legend.position="none") +
+     labs(x = "New_York", y = "Oregon", title = "Words describing Pinot Noir from Oregon and New_York")
+```
+
+CV: chocolate, berry, plum, raspberry
+
+Marlborough: cinnamon, chocolate
+
+New_York: aging, structured, forest
+
+```{r, warning=FALSE}
+# features that capture the essence of Casablance, Marlborough and NY
+pinot_features <- pinot_raw %>% 
+   rename_all(funs(tolower(.))) %>% 
+   rename_all(funs(str_replace_all(., "-", "_"))) %>% 
+   rename_all(funs(str_replace_all(., " ", "_"))) %>% 
+   mutate(chocolate = str_detect(description,"[Cc]hocolate")) %>%
+   mutate(cinnamon = str_detect(description,"[Cc]innamon")) %>%
+   mutate(plum=str_detect(description, "[Pp]lum")) %>% 
+  # good feature: aging
+   mutate(aging=str_detect(description, "[Aa]ging")) %>%
+   mutate(structured=str_detect(description, "[Ss]tructured")) %>%
+  # good feature: forest
+   mutate(forest=str_detect(description, "[Ff]orest")) %>% 
+   mutate(lprice=log(price)) %>% 
+   select(-description) %>% 
+   na.omit()
+```
+
+```{r}
+# Use what you find to run naive Bayes models that achieve a Kappa that approaches 0.5
+set.seed(504)
+pinot_index <- createDataPartition(pinot_features$province, p = 0.80, list = FALSE)
+pinot_train <- pinot_features[pinot_index, ]
+pinot_test <- pinot_features[-pinot_index, ]
+
+pinot_fit <- train(province ~ .,
+             data = pinot_train, 
+             method = "naive_bayes",
+             tuneGrid = expand.grid(usekernel = c(T,F), laplace = T, adjust = T),
+             metric = "Kappa",
+             trControl = trainControl(method = "cv"))
+pinot_fit
+```
+
+```{r}
+# diff between california and oregon
+ptxt %>% 
+    filter(province=="California" | province=="Oregon") %>% 
+    filter(!(word %in% c("wine","pinot","drink","noir","vineyard","palate","notes","flavors","bottling"))) %>% 
+    filter(total > 400) %>% 
+    group_by(province, word) %>%
+    count() %>% 
+    group_by(province) %>% 
+    mutate(proportion = n / sum(n)) %>% 
+    pivot_wider(id_cols = word, names_from = province, values_from = proportion) %>% 
+     ggplot(aes(x = California, y = Oregon, color = abs(California - Oregon))) +
+     geom_abline(color = "gray40", lty = 2) +
+     geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+     geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+     scale_x_log10(labels = percent_format()) +
+     scale_y_log10(labels = percent_format()) +
+     scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+     theme(legend.position="none") +
+     labs(x = "California", y = "Oregon", title = "Words describing Pinot Noir from Oregon and California")
+```
+
+Chocolate, berry, aging
+
+```{r}
+# Use what you find to run naive Bayes models that achieve a Kappa that approaches 0.5
+set.seed(504)
+pinot_index <- createDataPartition(pinot_features$province, p = 0.80, list = FALSE)
+pinot_train <- pinot_features[ pinot_index, ]
+pinot_test <- pinot_features[-pinot_index, ]
+
+pinot_fit <- train(province ~ .,
+             data = pinot_train, 
+             method = "naive_bayes",
+             tuneGrid = expand.grid(usekernel = c(T,F), laplace = T, adjust = T),
+             metric = "Kappa",
+             trControl = trainControl(method = "cv"))
+pinot_fit
+
+
+```
